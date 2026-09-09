@@ -28,7 +28,7 @@ k = 10
 U_matrix = np.random.rand(dim_rows, k) # each row represents one user (943 rows)
 V_matrix = np.random.rand(dim_columns, k) # each row represents a movie (1613 rows)
 
-movie_to_index = {} # creating a mapping between movie_id and V row index
+movie_to_index = {} # creating a mapping between movie_id and V row index (since missing some movies)
 
 for index, movie_id in enumerate(train_pivot.columns):
     movie_to_index[movie_id] = index
@@ -48,3 +48,20 @@ def epoch(U_matrix, V_matrix, train_df, learning_rate):
         U_matrix[i-1, :] = u_i + learning_rate * error_ij * v_j
         V_matrix[movie_to_index[j], :] = v_j + learning_rate * error_ij * u_i
     return (U_matrix, V_matrix)
+
+def RMSE(U, V, ratings):
+    squared_error_sum = 0
+    for row in ratings.itertuples():
+        i, j = (row.user_id, row.item_id)
+
+        u_i = U[i-1, :]
+        v_j = V[movie_to_index[j], :]
+
+        r_ij = row.rating
+        error_ij = r_ij - np.dot(u_i, v_j)
+        squared_error_sum += error_ij**2
+    return np.sqrt(1/len(ratings) * squared_error_sum)
+
+for x in range(10):
+    print(RMSE(U_matrix, V_matrix, train_df))
+    epoch(U_matrix, V_matrix, train_df, learning_rate)
