@@ -37,13 +37,13 @@ bias_user = np.zeros((943,))
 bias_movies = np.zeros((1613,))
 
 learning_rate = 0.01
-def epoch(U_matrix, V_matrix, train_df, learning_rate, global_average, bias_user, bias_movies):
+def epoch(U_matrix, V_matrix, train_df, learning_rate, global_average, bias_user, bias_movies, regularisation_strength):
     for row in train_df.itertuples():
         i, j = (row.user_id, row.item_id) # i for user, j for movie
 
         # parameters
-        u_i = U_matrix[i-1, :]
-        v_j = V_matrix[movie_to_index[j], :]
+        u_i = U_matrix[i-1, :].copy()
+        v_j = V_matrix[movie_to_index[j], :].copy()
         b_i = bias_user[i-1, ]
         b_j = bias_movies[movie_to_index[j], ]
         mu = global_average
@@ -53,10 +53,10 @@ def epoch(U_matrix, V_matrix, train_df, learning_rate, global_average, bias_user
         error_ij = r_ij - (mu + b_i + b_j + np.dot(u_i, v_j))
 
         # updating parameters
-        U_matrix[i-1, :] = u_i + learning_rate * error_ij * v_j
-        V_matrix[movie_to_index[j], :] = v_j + learning_rate * error_ij * u_i
-        bias_user[i-1, ] = b_i + learning_rate * error_ij
-        bias_movies[movie_to_index[j], ] = b_j + learning_rate * error_ij
+        U_matrix[i-1, :] = u_i + learning_rate * (error_ij * v_j - regularisation_strength * u_i)
+        V_matrix[movie_to_index[j], :] = v_j + learning_rate * (error_ij * u_i - regularisation_strength * v_j)
+        bias_user[i-1, ] = b_i + learning_rate * (error_ij - regularisation_strength * b_i)
+        bias_movies[movie_to_index[j], ] = b_j + learning_rate * (error_ij - regularisation_strength * b_j)
     return (U_matrix, V_matrix, bias_user, bias_movies)
 
 def RMSE(U, V, ratings, global_average, bias_user, bias_movies):
