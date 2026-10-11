@@ -10,16 +10,20 @@ sorted_df = df.sort_values(by=["user_id", "timestamp"])
 grouped = sorted_df.groupby("user_id")
 
 train_parts = []
+validate_parts = []
 test_parts = []
 
 for user_id, user_data in grouped:
     number_of_ratings = len(user_data)
-    cut_off = math.floor(0.8 * number_of_ratings)
+    cut_off_train = math.floor(0.7 * number_of_ratings)
+    cut_off_validate = math.floor(0.8 * number_of_ratings)
 
-    train_parts.append(user_data[:cut_off])
-    test_parts.append(user_data[cut_off:])
+    train_parts.append(user_data[:cut_off_train])
+    validate_parts.append(user_data[cut_off_train:cut_off_validate])
+    test_parts.append(user_data[cut_off_validate:])
 
 train_df = pd.concat(train_parts)
+validate_df = pd.concat(validate_parts)
 test_df = pd.concat(test_parts)
 
 train_pivot = train_df.pivot_table(index="user_id", columns="item_id", values="rating")
@@ -33,8 +37,8 @@ for index, movie_id in enumerate(train_pivot.columns):
     movie_to_index[movie_id] = index
 
 global_average = train_df["rating"].mean()
-bias_user = np.zeros((943,))
-bias_movies = np.zeros((1613,))
+bias_user = np.zeros((dim_rows,))
+bias_movies = np.zeros((dim_columns,))
 
 learning_rate = 0.01
 def epoch(U_matrix, V_matrix, train_df, learning_rate, global_average, bias_user, bias_movies, regularisation_strength):
@@ -77,7 +81,39 @@ def RMSE(U, V, ratings, global_average, bias_user, bias_movies):
     return np.sqrt(1/len(ratings) * squared_error_sum)
 
 test_df_filtered = test_df[test_df["item_id"].isin(movie_to_index)]
-for x in range(10):
-    print(f"Training: {RMSE(U_matrix, V_matrix, train_df, global_average, bias_user, bias_movies)}")
-    print(f"Testing: {RMSE(U_matrix, V_matrix, test_df_filtered, global_average, bias_user, bias_movies)}")
-    epoch(U_matrix, V_matrix, train_df, learning_rate, global_average, bias_user, bias_movies)
+validate_df_filtered = validate_df[validate_df["item_id"].isin(movie_to_index)]
+# for x in range(10):
+#     print(f"Training: {RMSE(U_matrix, V_matrix, train_df, global_average, bias_user, bias_movies)}")
+#     print(f"Testing: {RMSE(U_matrix, V_matrix, test_df_filtered, global_average, bias_user, bias_movies)}")
+#     epoch(U_matrix, V_matrix, train_df, learning_rate, global_average, bias_user, bias_movies)
+
+reg_strengths = [0, 0.001, 0.005, 0.01, 0.05, 0.1]
+results = []
+
+for x in reg_strengths:
+    np.random.seed(0)
+    U_matrix = np.random.normal(0, 0.1, size=(dim_rows, k)) # each row represents one user (943 rows)
+    V_matrix = np.random.normal(0, 0.1, size=(dim_columns, k)) # each row represents a movie (1613 rows)
+    bias_user = np.zeros((dim_rows,))
+    bias_movies = np.zeros((dim_columns,))
+
+    best_RMSE = np.inf
+    best_epoch = 0
+
+    for i in range(80):
+        epoch(U_matrix, V_matrix, train_df, learning_rate, global_average, bias_user, bias_movies, x)
+        train_RMSE = RMSE(U_matrix, V_matrix, train_df, global_average, bias_user, bias_movies)
+        validate_RMSE = RMSE(U_matrix, V_matrix, validate_df_filtered, global_average, bias_user, bias_movies)
+
+        if(validate_RMSE < best_RMSE):
+            best_RMSE = validate_RMSE
+            best_epoch = i + 1
+
+    results.append({
+        "regularisation_strength": x,
+        "best_RMSE": best_RMSE,
+        "best_epoch": best_epoch
+    })
+
+results_df = pd.DataFrame(results)
+print(results_df)
